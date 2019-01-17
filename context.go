@@ -93,7 +93,13 @@ type sshContext struct {
 }
 
 func newContext(srv *Server) (*sshContext, context.CancelFunc) {
-	innerCtx, cancel := context.WithCancel(context.Background())
+	var baseCtx context.Context
+	if srv.ContextCallback != nil {
+		baseCtx = srv.ContextCallback()
+	} else {
+		baseCtx = context.Background()
+	}
+	innerCtx, cancel := context.WithCancel(baseCtx)
 	ctx := &sshContext{innerCtx}
 	ctx.SetValue(ContextKeyServer, srv)
 	perms := &Permissions{&gossh.Permissions{}}

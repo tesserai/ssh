@@ -95,6 +95,7 @@ func sessionHandler(srv *Server, conn *gossh.ServerConn, newChan gossh.NewChanne
 		conn:    conn,
 		handler: srv.Handler,
 		ptyCb:   srv.PtyCallback,
+		exitCb:  srv.ExitCallback,
 		ctx:     ctx,
 	}
 	sess.handleRequests(reqs)
@@ -111,6 +112,7 @@ type session struct {
 	winch     chan Window
 	env       []string
 	ptyCb     PtyCallback
+	exitCb    ExitCallback
 	cmd       []string
 	cmdraw    string
 	subsystem string
@@ -164,6 +166,7 @@ func (sess *session) Exit(code int) error {
 
 	status := struct{ Status uint32 }{uint32(code)}
 	_, err := sess.SendRequest("exit-status", false, gossh.Marshal(&status))
+	sess.exitCb(sess.ctx, code, err)
 	if err != nil {
 		return err
 	}

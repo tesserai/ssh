@@ -24,6 +24,8 @@ type Server struct {
 	HostSigners []Signer // private keys for the host key, must have at least one
 	Version     string   // server version to be sent before the initial handshake
 
+	ContextCallback               ContextCallback               // callback for creating connection contexts, uses context.Background() if nil
+	ExitCallback                  ExitCallback                  // callback when exiting a session
 	PasswordHandler               PasswordHandler               // password authentication handler
 	PublicKeyHandler              PublicKeyHandler              // public key authentication handler
 	PtyCallback                   PtyCallback                   // callback for allowing PTY sessions, allows all if nil

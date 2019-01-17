@@ -1,6 +1,7 @@
 package ssh
 
 import (
+	"context"
 	"crypto/subtle"
 	"net"
 )
@@ -46,6 +47,10 @@ type PtyCallback func(ctx Context, pty Pty) bool
 // It allows wrapping for timeouts and limiting by returning
 // the net.Conn that will be used as the underlying connection.
 type ConnCallback func(conn net.Conn) net.Conn
+
+type ContextCallback func() context.Context
+
+type ExitCallback func(ctx Context, code int, sendErr error)
 
 // LocalPortForwardingCallback is a hook for allowing port forwarding
 type LocalPortForwardingCallback func(ctx Context, destinationHost string, destinationPort uint32) bool
