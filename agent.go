@@ -16,6 +16,9 @@ const (
 
 	agentTempDir    = "auth-agent"
 	agentListenFile = "listener.sock"
+
+	agentGoKeepalive  = "keepalive@golang.org"
+	agentSSHKeepalive = "keepalive@openssh.com"
 )
 
 // contextKeyAgentRequest is an internal context key for storing if the

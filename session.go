@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"sync"
 
@@ -43,6 +44,12 @@ type Session interface {
 	// user. Shell parsing splits the command string according to POSIX shell rules,
 	// which considers quoting not just whitespace.
 	Command() []string
+
+	// CommandRaw returns the unparsed command string that was provided by the user.
+	CommandRaw() string
+
+	// Subsystem returns subsystem name if one was asked for, else empty string.
+	Subsystem() string
 
 	// PublicKey returns the PublicKey used to authenticate. If a public key was not
 	// used it will return nil.
@@ -96,18 +103,20 @@ func sessionHandler(srv *Server, conn *gossh.ServerConn, newChan gossh.NewChanne
 type session struct {
 	sync.Mutex
 	gossh.Channel
-	conn    *gossh.ServerConn
-	handler Handler
-	handled bool
-	exited  bool
-	pty     *Pty
-	winch   chan Window
-	env     []string
-	ptyCb   PtyCallback
-	cmd     []string
-	ctx     Context
-	sigCh   chan<- Signal
-	sigBuf  []Signal
+	conn      *gossh.ServerConn
+	handler   Handler
+	handled   bool
+	exited    bool
+	pty       *Pty
+	winch     chan Window
+	env       []string
+	ptyCb     PtyCallback
+	cmd       []string
+	cmdraw    string
+	subsystem string
+	ctx       Context
+	sigCh     chan<- Signal
+	sigBuf    []Signal
 }
 
 func (sess *session) Write(p []byte) (n int, err error) {
@@ -181,6 +190,14 @@ func (sess *session) Command() []string {
 	return append([]string(nil), sess.cmd...)
 }
 
+func (sess *session) CommandRaw() string {
+	return sess.cmdraw
+}
+
+func (sess *session) Subsystem() string {
+	return sess.subsystem
+}
+
 func (sess *session) Pty() (Pty, <-chan Window, bool) {
 	if sess.pty != nil {
 		return *sess.pty, sess.winch, true
@@ -215,6 +232,23 @@ func (sess *session) handleRequests(reqs <-chan *gossh.Request) {
 			var payload = struct{ Value string }{}
 			gossh.Unmarshal(req.Payload, &payload)
 			sess.cmd, _ = shlex.Split(payload.Value, true)
+			sess.cmdraw = payload.Value
+			go func() {
+				sess.handler(sess)
+				sess.Exit(0)
+			}()
+		case agentGoKeepalive, agentSSHKeepalive:
+			req.Reply(true, nil)
+		case "subsystem":
+			if sess.handled {
+				req.Reply(false, nil)
+				continue
+			}
+			sess.handled = true
+			req.Reply(true, nil)
+			var payload = struct{ Value string }{}
+			gossh.Unmarshal(req.Payload, &payload)
+			sess.subsystem = payload.Value
 			go func() {
 				sess.handler(sess)
 				sess.Exit(0)
@@ -282,6 +316,7 @@ func (sess *session) handleRequests(reqs <-chan *gossh.Request) {
 			req.Reply(true, nil)
 		default:
 			// TODO: debug log
+			log.Printf("unknown request : %+v", req)
 			req.Reply(false, nil)
 		}
 	}
